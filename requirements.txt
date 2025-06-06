@@ -21,3 +21,7 @@ colorlog==6.9.0
 soundfile>=0.12.1
 pygame==2.6.1
 scipy
+alibabacloud_facebody20191230
+alibabacloud_credentials
+alibabacloud_tea_openapi
+alibabacloud_tea_util
