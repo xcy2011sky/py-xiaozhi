@@ -103,7 +103,6 @@ class FaceAnalyzer:
             print("client创建成功...")
             return client
         except Exception as error:
-            FaceAnalyzer.logger.error(f'创建client失败：{str(error)}', exc_info=True)
             print(f'创建client失败：{str(error)}')
             raise
 

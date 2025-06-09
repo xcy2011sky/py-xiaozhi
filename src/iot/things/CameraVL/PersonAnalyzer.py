@@ -1,8 +1,11 @@
+import sys
+import os
+sys.path.append(os.path.abspath("d:/ws/Agent/py-xiaozhi"))
+import time
 from typing import BinaryIO
 import threading
 from enum import Enum
-
-from iot.things.CameraVL.FaceAnalyzer import FaceAnalyzer
+from src.iot.things.CameraVL.FaceAnalyzer import FaceAnalyzer
 
 
 class FaceObject:
@@ -13,36 +16,55 @@ class FaceObject:
         self.rect = rect
        
 
-class PersonObject:
-    PersonObjects=[]
-    def __init__(self,
-                 face_object: FaceObject,#只保存Confidence最高的人脸信息
-                 hand_gesture: str,
-                 age: int,
-                 gender: str,
-                 emotion: str):
-        self.face_object = face_object
-        self.hand_gesture = hand_gesture
-        self.age = age
-        self.gender = gender
-        self.emotion = emotion
-        self.face_analyzer = None  # Placeholder for FaceAnalyzer instance
-        self.name = face_object.entity_id;  # Placeholder for person's name, if available
-    def __str__(self):
-        return (f"PersonObject(face_id={self.face_object.face_id}, "
-                f"confidence={self.face_object.confidence}, "
-                f"rect={self.face_object.rect}, "
-                f"hand_gesture={self.hand_gesture}, "
-                f"age={self.age}, "   
-                f"gender={self.gender}, "
-                f"emotion={self.emotion})")    
-    def analyze(self, image: BinaryIO):
-        analysis_thread = threading.Thread(target=self._perform_analysis, args=(image,))
-        analysis_thread.start()
-        analysis_thread.join()  # 等待线程完成
-        # 返回自身作为占位符，实际应根据分析结果创建并返回一个PersonObject实例
 
-    def _perform_analysis(self, image: BinaryIO):
+class PersonObject:
+    def __init__(self, face_object: FaceObject, hand_gesture: str, age: int, gender: str, emotion: str):    
+        self.face_object = face_object # FaceObject instance    
+        self.name = face_object.entity_id if face_object else "Unknown"  # Default name if no face object is provided
+        self.hand_gesture = hand_gesture  # Static hand gesture analysis result
+        self.age = age  # Age analysis result 
+        self.gender = gender    # Gender analysis result
+        self.emotion = emotion  # Emotion analysis result
+
+
+
+    def __str__(self):
+        return (f"PersonObject(name={self.name}, "
+                f"face_object={self.face_object.face_id if self.face_object else None}, "
+                f"hand_gesture={self.hand_gesture}, "
+                f"age={self.age}, " 
+                f"gender={self.gender}, "
+                f"emotion={self.emotion})")
+    
+    
+
+class PersonAnalyzer:
+
+    # _instance_lock = threading.Lock()
+    # _instance = None
+
+    # def __new__(cls, *args, **kwargs):
+    #     if cls._instance is None:
+    #         with cls._instance_lock:
+    #             if cls._instance is None:
+    #                 cls._instance = super().__new__(cls)
+    #     return cls._instance
+
+    def __init__(self):
+        print("creating PersonAnalyzer instance")
+        self.face_analyzer = FaceAnalyzer.get_instance()
+
+    # @classmethod
+    # def get_instance(cls):
+    #     if cls._instance is None:
+    #         with cls._instance_lock:
+    #             if cls._instance is None:
+    #                 cls._instance = cls()
+    #     return cls._instance
+    def analyze(self, image: BinaryIO):
+        #记录当前开始时间
+        start_time = time.time()
+        persons=[]
         # 执行人脸分析、人脸属性、表情和静态手势分析的实际逻辑
         # stage 1 人脸分析： {'Data': {'MatchList': [{'FaceItems': [{'Confidence': 100.0, 'DbName': 'default', 'EntityId': 'yan', 'FaceId': '262990250', 'Score': 1.0}, {'Confidence': 69.59747, 'DbName': 'default', 'EntityId': 'yan2', 'FaceId': '263620824', 'Score': 0.4881063997745514}], 'Location': {'Height': 129, 'Width': 99, 'X': 140, 'Y': 58}, 'QualitieScore': 99.6685}]}, 'RequestId': '5D8E26F5-DC7A-5D29-BE93-E9A39449F746'}
         self.face_analyzer=FaceAnalyzer.get_instance()
@@ -81,7 +103,7 @@ class PersonObject:
         status,face_attribers = self.face_analyzer.recognize_face(image)
         if status == "success":
             # 遍历人脸属性分析结果
-            persons=[]
+           
             for face in person_faces:
                 # 获取对应人脸的属性
                 index = person_faces.index(face)
@@ -141,7 +163,8 @@ class PersonObject:
         # state5 打印所有人的信息
         for person in persons:
             print(person)
-        PersonObject.PersonObjects.clear()
-        PersonObject.PersonObjects=persons
-
-    
+        # 记录结束时间
+        end_time = time.time()
+        # 打印分析耗时  
+        print(f"Analysis completed in {end_time - start_time:.2f} seconds") 
+        return persons  # 返回所有分析结果的列表

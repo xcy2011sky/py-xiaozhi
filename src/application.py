@@ -1234,8 +1234,13 @@ class Application:
         thing_manager.add_thing(Lamp())
         thing_manager.add_thing(Speaker())
         thing_manager.add_thing(MusicPlayer())
+        # 默认启用以下示例
+       
+        camera = Camera()
+        camera.start_camera()
+        thing_manager.add_thing(camera)
+
         # 默认不启用以下示例
-        thing_manager.add_thing(Camera())
 
         # 添加倒计时器设备
         thing_manager.add_thing(CountdownTimer())

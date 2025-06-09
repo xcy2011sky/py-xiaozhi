@@ -1,14 +1,17 @@
 import asyncio
 import base64
+import io
 import logging
 import threading
 
 import cv2
 
+
 from src.application import Application
 from src.constants.constants import DeviceState
 from src.iot.thing import Thing
 from src.iot.things.CameraVL import VL
+from src.iot.things.CameraVL.PersonAnalyzer import PersonAnalyzer
 
 logger = logging.getLogger("Camera")
 
@@ -25,6 +28,7 @@ class Camera(Thing):
         self.cap = None
         self.is_running = False
         self.camera_thread = None
+        self.person_analyzer_thread = None
         self.result = ""
         from src.utils.config_manager import ConfigManager
 
@@ -39,6 +43,15 @@ class Camera(Thing):
         print(f"[虚拟设备] 摄像头设备初始化完成")
 
         self.add_property_and_method()  # 定义设备方法与状态属性
+
+        # 启动实时人物分析
+        self.person_analyzer_thread = None
+        self.enable_person_analyzer = True
+        self.is_person_analyzer_running = False
+        print(f"[虚拟设备] 初始化实时人物分析")
+        self.person_analyzer = PersonAnalyzer()
+        print(f"[虚拟设备] 初始化实时人物分析完成")
+      
 
     def add_property_and_method(self):
         # 定义属性
@@ -84,6 +97,11 @@ class Camera(Thing):
             if not ret:
                 logger.error("无法读取画面")
                 break
+            if not self.is_person_analyzer_running and self.enable_person_analyzer:
+                logger.info("启动实时人物分析线程")
+                self.start_person_analyze()
+                self.is_person_analyzer_running = True
+                
 
             # 显示画面
             cv2.imshow("Camera", frame)
@@ -133,6 +151,44 @@ class Camera(Thing):
         self.app.set_device_state(DeviceState.LISTENING)
         asyncio.create_task(self.app.protocol.send_wake_word_detected("播报识别结果"))
         return {"status": "success", "message": "识别成功", "result": self.result}
+    
+    def _person_analyzer_loop(self):
+        
+        """实时人物分析线程的主循环"""
+        if not self.cap or not self.cap.isOpened(): 
+            logger.error("摄像头未打开")
+            return
+        frame_count = 0     
+        while self.is_running:
+            if frame_count % 60 == 0:
+                ret, frame = self.cap.read()
+                if not ret:
+                    logger.error("无法读取画面")
+                    break
+
+                # 将帧转换为 JPEG 格式
+                _, buffer = cv2.imencode(".jpg", frame)
+                buffer_array = io.BytesIO(buffer.tobytes())
+                if self.person_analyzer is None:
+                    raise ValueError("PersonAnalyzer未初始化")
+                result=self.person_analyzer.analyze(buffer_array)
+            else:
+                result = None
+            frame_count += 1
+        print(f" 实时人物分析线程已停止")
+    
+
+
+    def start_person_analyze(self):
+        if self.person_analyzer_thread is not None and self.person_analyzer_thread.is_alive():
+            logger.warning("视觉分析线程已在运行")
+            return
+        
+        self.person_analyzer_thread = threading.Thread(target=self._person_analyzer_loop, daemon=True)
+        self.person_analyzer_thread.start()
+        logger.info("视觉分析线程已启动")
+        
+
 
     def stop_camera(self):
         """停止摄像头线程"""
