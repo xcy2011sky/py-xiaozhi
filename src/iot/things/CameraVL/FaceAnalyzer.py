@@ -71,25 +71,16 @@ class FaceAnalyzer:
     client = None
 
     def __init__(self):
-        # 初始化日志记录器
         self.logger = logging.getLogger(self.__class__.__name__)
-        # 确保在初始化时创建客户端
         if not self.client:
             self.init_client()
 
     def __new__(cls):
-        """确保单例模式"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
     def create_client(self) -> facebody20191230Client:
-        """
-        使用凭据初始化账号Client
-        @return: Client
-        @throws Exception
-        """
-        self.logger.info("create_client...")
         try:
             credential = CredentialClient()
             config = open_api_models.Config(
@@ -105,8 +96,6 @@ class FaceAnalyzer:
             raise
 
     def init_client(self):
-        """初始化客户端"""
-        self.logger.info("Initializing client...")
         try:
             self.client = self.create_client()
         except Exception as error:
@@ -115,100 +104,51 @@ class FaceAnalyzer:
 
     @classmethod
     def get_instance(cls):
-        print("Getting FaceAnalyzer instance...")
-        """获取人脸识别管理器实例（线程安全）"""
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
         return cls._instance
 
     def recongize_expression(self, image:BinaryIO) -> dict:
-        """
-        分析图片中的人脸表情
-        @param image_base64: 图片的base64编码
-        @return: 包含表情分析结果的字典
-        @throws Exception
-        """
-        self.logger.info("开始分析人脸表情...")
         try:
-            # 构建请求参数
             recognize_expression_request = facebody_20191230_models.RecognizeExpressionAdvanceRequest(
-                image_urlobject=image,  # 这里假设 image 是一个已经处理好的图片对象
-              
+                image_urlobject=image,  
             )
             runtime = util_models.RuntimeOptions()
-
-            # 确保 client 已经初始化
-            if not self.client:
-                self.init_client()
-
-            # 调用API进行表情分析
             response = self.client.recognize_expression_advance(recognize_expression_request, runtime)
-
-            # 解析并返回结果
             result = {
                 'status': 'success',
                 'result': response.body
             }
-            self.logger.info("表情分析完成，结果: %s", result['result'])
+            #self.logger.info("表情分析完成，结果: %s", result['result'])
             return result
         except Exception as error:
-            self.logger.error(f"分析过程中发生错误: {error}", exc_info=True)
-            # 错误 message
-            print(f'错误信息：{str(error)}')
-            # 这里 error.data 可能不存在，所以加上 hasattr 判断
-            recommend = "N/A"
-            if hasattr(error, 'args') and len(error.args) > 0:
-                first_arg = error.args[0]
-                if isinstance(first_arg, dict):
-                    recommend = first_arg.get("Recommend", "N/A")
-                elif hasattr(first_arg, 'Recommend'):
-                    recommend = first_arg.Recommend
-                else:
-                    recommend = "N/A"
-            print(f'诊断地址：{recommend}')
+            #self.logger.error(f"分析过程中发生错误: {error}", exc_info=True)
             return {
                 'status': 'error',
-                'message': str(error),
-                'diagnosis': recommend
+                'result': str(error)
             }
 
     def search_face(self, image:BinaryIO) -> dict:
-        """
-        搜索图片中的人脸并返回ID
-        @param image: 图片的image编码
-        @return: 包含人脸ID的结果字典
-        @throws Exception
-        """
-        self.logger.info("开始搜索人脸...")
+     
         try:
-            # 构建请求参数
+
             search_face_request = facebody_20191230_models.SearchFaceAdvanceRequest(
-                image_url_object=image,  # 这里假设 image 是一个已经处理好的图片对象
+                image_url_object=image,  
                 limit=2,
-                db_name="default"  # 替换为实际的人脸库名称
+                db_name="default"  
             )
             runtime = util_models.RuntimeOptions()
-
-            # 确保 client 已经初始化
-            if not self.client:
-                self.init_client()
-
-            # 调用API进行人脸搜索
             response = self.client.search_face_advance(search_face_request, runtime)
-            if not response:
-                raise Exception("API调用返回空响应")
-            self.logger.info("response: %s", response.body)
-            # 解析并返回结果
+            #self.logger.info("response: %s", response.body)
+
             result = {
                 'status': 'success',
                 'result': response.body
             }
             return result
         except Exception as error:
-            self.logger.error(f"搜索人脸时发生错误: {error}", exc_info=True)
-            # 错误 message
-            print(f'错误信息：{str(error)}')
+            #self.logger.error(f"搜索人脸时发生错误: {error}", exc_info=True)
             result = {
                 'status': 'error',
                 'result': str(error)
@@ -216,15 +156,7 @@ class FaceAnalyzer:
             return result
 
     def recognize_face(self, image:BinaryIO) -> dict:
-        """
-        分析图片中的人脸属性
-        @param image_base64: 图片的base64编码
-        @return: 包含人脸属性分析结果的字典
-        @throws Exception
-        """
-        self.logger.info("开始分析人脸属性...")
         try:
-            # 构建请求参数
             recognize_face_request = facebody_20191230_models.RecognizeFaceAdvanceRequest(
                  age=True,
                  gender=True,
@@ -233,21 +165,15 @@ class FaceAnalyzer:
                  image_urlobject=image,
             )
             runtime = util_models.RuntimeOptions()
-            
-            # 调用API进行人脸属性分析
             response = self.client.recognize_face_advance(recognize_face_request, runtime)
-
-            # 解析并返回结果
             result = {
                 'status': 'success',
                 'result': response.body
             }
-            self.logger.info("人脸属性分析完成，结果: %s", result['result'])
+            #self.logger.info("人脸属性分析完成，结果: %s", result['result'])
             return result
         except Exception as error:
-            self.logger.error("分析人脸属性时发生错误: %s", error, exc_info=True)
-            # 错误 message
-            print(f'错误信息：{str(error)}')
+            #self.logger.error("分析人脸属性时发生错误: %s", error, exc_info=True)
             result = {
                 'status': 'error',
                 'result': str(error)
@@ -256,35 +182,25 @@ class FaceAnalyzer:
            
 
     def recognize_hand_gesture(self, image:BinaryIO) -> dict:
-        """
-        识别静态手势
-        @param image: 图片的二进制流
-        @return: 包含手势识别结果的字典
-        @throws Exception
-        """
-        self.logger.info("开始识别手势...")
         try:
-        
-            # 构建请求参数
+
             recognize_hand_gesture_request = facebody_20191230_models.RecognizeHandGestureAdvanceRequest(
                 app_id="gesture_app",
                 gesture_type="gesture_recognition",
-                image_urlobject=image,  # 这里假设 image 是一个已经处理好的图片对象
+                image_urlobject=image,  
             )
             runtime = util_models.RuntimeOptions()
 
-            # 调用API进行手势识别
             response = self.client.recognize_hand_gesture_advance(recognize_hand_gesture_request, runtime)
 
-            # 解析并返回结果
             result = {
                 'status': 'success',
-                'result': response.body if hasattr(response, 'body') else None
+                'result': response.body 
             }
-            self.logger.info("手势识别完成，结果: %s", result['result'])    
+            #self.logger.info("手势识别完成，结果: %s", result['result'])    
             return result
         except Exception as error:
-            self.logger.error(f"手势识别时发生错误: {error}", exc_info=True)
+            #self.logger.error(f"手势识别时发生错误: {error}", exc_info=True)
             result = {
                 'status': 'error',
                 'result': str(error)
@@ -293,65 +209,7 @@ class FaceAnalyzer:
            
 
   
-        """在画面中绘制分析结果"""
-        # 当前Y轴起始位置
-        y_position = 30
         
-        # 绘制标题
-        cv2.putText(frame, "Analysis Results:", (10, y_position), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        y_position += 30
-        
-        # 绘制人脸表情分析结果
-        if analysis_result['face_expression']['status'] == 'success':
-            if hasattr(analysis_result['face_expression']['result'], 'expression'):
-                expression = analysis_result['face_expression']['result'].expression
-                cv2.putText(frame, f"Face Expression: {expression}", (10, y_position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-                y_position += 25
-        
-        # 绘制人脸属性分析结果
-        if analysis_result['face_attribute']['status'] == 'success':
-            attribute = analysis_result['face_attribute']['result']
-            if hasattr(attribute, 'age_value'):
-                cv2.putText(frame, f"Age: {attribute.age_value}", (10, y_position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-                y_position += 25
-            
-            if hasattr(attribute, 'gender_type'):
-                gender = "Male" if attribute.gender_type == 1 else "Female"
-                cv2.putText(frame, f"Gender: {gender}", (10, y_position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-                y_position += 25
-            
-            if hasattr(attribute, 'hair_color_type'):
-                cv2.putText(frame, f"Hair Color: {attribute.hair_color_type}", (10, y_position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-                y_position += 25
-
-        # 绘制人脸注册信息（如果存在）
-        if analysis_result.get('face_registration', {}).get('status') == 'success':
-            face_registration = analysis_result['face_registration']['result']
-            if hasattr(face_registration, 'matches') and isinstance(face_registration.matches, list):
-                for match in face_registration.matches:
-                    location = match.get('location', {})
-                    x = location.get('x', 0)
-                    y = location.get('y', 0)
-                    width = location.get('width', 0)
-                    height = location.get('height', 0)
-                    confidence = match.get('confidence', 0)
-                    entity_id = match.get('EntityId', '')
-                    
-                    # 绘制人脸框
-                    cv2.rectangle(frame, (x, y), (x + width, y + height), (255, 0, 0), 2)  # 蓝色矩形框
-                    # 显示置信度和EntityId
-                    text = f"{entity_id} ({confidence:.1f}%)"
-                    cv2.putText(frame, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-                    y_position += 25
-        
-        # 绘制手势识别结果
-        if analysis_result['hand_gesture']['status'] == 'success':
-            if hasattr(analysis_result['hand_gesture']['result'], 'hand_sign'):
-                gesture = analysis_result['hand_gesture']['result'].hand_sign
-                cv2.putText(frame, f"Hand Gesture: {gesture}", (10, y_position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-                y_position += 25
-        
-        return frame
 
 if __name__ == "__main__":
     import sys

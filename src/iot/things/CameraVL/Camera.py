@@ -11,7 +11,7 @@ from src.application import Application
 from src.constants.constants import DeviceState
 from src.iot.thing import Thing
 from src.iot.things.CameraVL import VL
-from src.iot.things.CameraVL.PersonAnalyzer import PersonAnalyzer
+from src.iot.things.CameraVL.PersonAnalyzer import PersonAnalyzer, PersonObject
 
 logger = logging.getLogger("Camera")
 
@@ -48,9 +48,10 @@ class Camera(Thing):
         self.person_analyzer_thread = None
         self.enable_person_analyzer = True
         self.is_person_analyzer_running = False
-        print(f"[虚拟设备] 初始化实时人物分析")
         self.person_analyzer = PersonAnalyzer()
-        print(f"[虚拟设备] 初始化实时人物分析完成")
+        self.person_list_holder = []  # 用于存储分析结果
+        print(f"[虚拟设备] 视觉实时人物分析初始化完成")
+ 
       
 
     def add_property_and_method(self):
@@ -123,7 +124,6 @@ class Camera(Thing):
         self.camera_thread = threading.Thread(target=self._camera_loop, daemon=True)
         self.camera_thread.start()
         logger.info("摄像头线程已启动")
-        print(f"[虚拟设备] 摄像头线程已启动")
         return {"status": "success", "message": "摄像头线程已打开"}
 
     def capture_frame_to_base64(self):
@@ -143,11 +143,9 @@ class Camera(Thing):
         # 将 JPEG 图像转换为 Base64 编码
         frame_base64 = base64.b64encode(buffer).decode("utf-8")
         self.result = str(self.VL.analyze_image(frame_base64))
-        print(self.result)
         # 获取应用程序实例
         self.app = Application.get_instance()
         logger.info("画面已经识别到啦")
-        print(f"[虚拟设备] 画面已经识别完成")
         self.app.set_device_state(DeviceState.LISTENING)
         asyncio.create_task(self.app.protocol.send_wake_word_detected("播报识别结果"))
         return {"status": "success", "message": "识别成功", "result": self.result}
@@ -158,7 +156,8 @@ class Camera(Thing):
         if not self.cap or not self.cap.isOpened(): 
             logger.error("摄像头未打开")
             return
-        frame_count = 0     
+        frame_count = 0
+        old_persons=[]     
         while self.is_running:
             if frame_count % 60 == 0:
                 ret, frame = self.cap.read()
@@ -171,14 +170,92 @@ class Camera(Thing):
                 buffer_array = io.BytesIO(buffer.tobytes())
                 if self.person_analyzer is None:
                     raise ValueError("PersonAnalyzer未初始化")
-                result=self.person_analyzer.analyze(buffer_array)
+                
+                persons=self.person_analyzer.analyze(buffer_array)
+                # for person in persons:
+                #     logger.info(f"识别到人: {person}")
+                if self.compare_person_list(persons,old_persons)==False:  
+                    self.person_chat_message(persons)
+                    old_persons=persons
+                else:
+                    logger.info("人物分析结果无变化")
+
             else:
                 result = None
             frame_count += 1
-        print(f" 实时人物分析线程已停止")
+     
+        logger.warning(f" 实时人物分析线程已停止")
+    def compare_person(self,person1:PersonObject,person2:PersonObject)->bool:
+        return person1.name==person2.name and person1.gender==person2.gender and person1.emotion==person2.emotion and person1.hand_gesture==person2.hand_gesture
     
+    def compare_person_list(self,person_list1:list[PersonObject],person_list2:list[PersonObject])->bool:
+        if(len(person_list1)!=len(person_list2)):
+            return False
+        else:
+            for person1 in person_list1:
+                for person2 in person_list2:
+                    if(self.compare_person(person1,person2)):
+                        return True
+                    else: 
+                        return False
+            return False
+    
+    
+    def person_chat_message(self,person_list:list[PersonObject]):
+        """
+        处理人物分析结果，生成聊天消息
+        :param person_list: 人物对象列表
+        """
+        chat_messages = []
+        if person_list.__len__() ==0  and   self.person_list_holder.__len__() == 0:
+            logger.info("初次启动没有识别到人物")
+            return 
+        if  person_list.__len__() > 0  and self.person_list_holder.__len__() == 0:
+            self.person_list_holder = person_list
+            logger.info(f"新识别到人物: {self.person_list_holder}")
+            return 
+        if  person_list.__len__() == 0 and self.person_list_holder.__len__() > 0:
+            logger.info("之前有人物，但是人物已经离开：")
+            return 
+        if self.person_list_holder.__len__() > 0 and person_list.__len__() > 0:
+
+            if(len(person_list)==len(self.person_list_holder)):
+                logger.info("人物列表无变化,表情、动作有变化")
+                for new_person in person_list:
+                    for old_person in self.person_list_holder:
+                        if new_person.name==old_person.name:
+                            logger.info(f"{new_person.name} 表情或动作发生了变化")
+                            if new_person.emotion!=old_person.emotion:
+                                logger.info(f" {new_person.name} 之前表情：{old_person.emotion}新表情为: {new_person.emotion}")
+                                old_person.emotion=new_person.emotion
+
+                            
+                            if  new_person.hand_gesture!=old_person.hand_gesture:
+                                logger.info(f" {new_person.name} 之前手势：{old_person.hand_gesture}新手势为: {new_person.hand_gesture}")
+                                old_person.hand_gesture=new_person.hand_gesture
+                        else:
+                            continue
 
 
+            else:
+                logger.info("人物列表有变化")
+                for new_person in person_list:
+                    for old_person in self.person_list_holder:
+                        if new_person.name==old_person.name:
+                            continue
+                        else:
+                            self.person_list_holder.append(new_person)
+                            logger.info(f"新增人物: {new_person.name} 当当前总人数= {self.person_list_holder.__len__()}")
+     
+
+            return 
+        else:
+            logger.error("无预期的场景")  
+            return  
+        
+
+        
+     
     def start_person_analyze(self):
         if self.person_analyzer_thread is not None and self.person_analyzer_thread.is_alive():
             logger.warning("视觉分析线程已在运行")
@@ -197,5 +274,4 @@ class Camera(Thing):
             self.camera_thread.join()  # 等待线程结束
             self.camera_thread = None
             logger.info("摄像头线程已停止")
-            print(f"[虚拟设备] 摄像头线程已停止")
             return {"status": "success", "message": "摄像头线程已停止"}
