@@ -72,7 +72,6 @@ class FaceAnalyzer:
 
     def __init__(self):
         # 初始化日志记录器
-        print("Initializing FaceAnalyzer...")
         self.logger = logging.getLogger(self.__class__.__name__)
         # 确保在初始化时创建客户端
         if not self.client:
@@ -84,14 +83,13 @@ class FaceAnalyzer:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    @staticmethod
-    def create_client() -> facebody20191230Client:
+    def create_client(self) -> facebody20191230Client:
         """
         使用凭据初始化账号Client
         @return: Client
         @throws Exception
         """
-        print("create_client...")
+        self.logger.info("create_client...")
         try:
             credential = CredentialClient()
             config = open_api_models.Config(
@@ -100,15 +98,15 @@ class FaceAnalyzer:
             # Endpoint 请参考 https://api.aliyun.com/product/facebody
             config.endpoint = f'facebody.cn-shanghai.aliyuncs.com'
             client = facebody20191230Client(config)
-            print("client创建成功...")
+            self.logger.info("client创建成功...")
             return client
         except Exception as error:
-            print(f'创建client失败：{str(error)}')
+            self.logger.error(f'创建client失败：{str(error)}', exc_info=True)
             raise
 
     def init_client(self):
         """初始化客户端"""
-        print("Initializing client...")
+        self.logger.info("Initializing client...")
         try:
             self.client = self.create_client()
         except Exception as error:
@@ -155,7 +153,7 @@ class FaceAnalyzer:
             self.logger.info("表情分析完成，结果: %s", result['result'])
             return result
         except Exception as error:
-            self.logger.error("分析过程中发生错误: %s", error, exc_info=True)
+            self.logger.error(f"分析过程中发生错误: {error}", exc_info=True)
             # 错误 message
             print(f'错误信息：{str(error)}')
             # 这里 error.data 可能不存在，所以加上 hasattr 判断
@@ -208,7 +206,7 @@ class FaceAnalyzer:
             }
             return result
         except Exception as error:
-            self.logger.error("搜索人脸时发生错误: %s", error, exc_info=True)
+            self.logger.error(f"搜索人脸时发生错误: {error}", exc_info=True)
             # 错误 message
             print(f'错误信息：{str(error)}')
             result = {
@@ -286,7 +284,7 @@ class FaceAnalyzer:
             self.logger.info("手势识别完成，结果: %s", result['result'])    
             return result
         except Exception as error:
-            #self.logger.error("手势识别时发生错误: %s", error, exc_info=True)
+            self.logger.error(f"手势识别时发生错误: {error}", exc_info=True)
             result = {
                 'status': 'error',
                 'result': str(error)

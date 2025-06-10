@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.append(os.path.abspath("d:/ws/Agent/py-xiaozhi"))
 import time
+import logging
 from typing import BinaryIO
 import threading
 from enum import Enum
@@ -40,46 +41,33 @@ class PersonObject:
 
 class PersonAnalyzer:
 
-    # _instance_lock = threading.Lock()
-    # _instance = None
-
-    # def __new__(cls, *args, **kwargs):
-    #     if cls._instance is None:
-    #         with cls._instance_lock:
-    #             if cls._instance is None:
-    #                 cls._instance = super().__new__(cls)
-    #     return cls._instance
-
     def __init__(self):
-        print("creating PersonAnalyzer instance")
         self.face_analyzer = FaceAnalyzer.get_instance()
+        # 初始化日志记录器
+        self.logger = logging.getLogger(self.__class__.__name__)
 
-    # @classmethod
-    # def get_instance(cls):
-    #     if cls._instance is None:
-    #         with cls._instance_lock:
-    #             if cls._instance is None:
-    #                 cls._instance = cls()
-    #     return cls._instance
     def analyze(self, image: BinaryIO):
         #记录当前开始时间
         start_time = time.time()
         persons=[]
+        person_faces = []
         # 执行人脸分析、人脸属性、表情和静态手势分析的实际逻辑
         # stage 1 人脸分析： {'Data': {'MatchList': [{'FaceItems': [{'Confidence': 100.0, 'DbName': 'default', 'EntityId': 'yan', 'FaceId': '262990250', 'Score': 1.0}, {'Confidence': 69.59747, 'DbName': 'default', 'EntityId': 'yan2', 'FaceId': '263620824', 'Score': 0.4881063997745514}], 'Location': {'Height': 129, 'Width': 99, 'X': 140, 'Y': 58}, 'QualitieScore': 99.6685}]}, 'RequestId': '5D8E26F5-DC7A-5D29-BE93-E9A39449F746'}
+        logging.info("stage 1: Starting person analysis...")
         self.face_analyzer=FaceAnalyzer.get_instance()
-        status,face_result = self.face_analyzer.search_face(image)
-        if status =="success":
+        result = self.face_analyzer.search_face(image)
+        face_result = result['result']
+        logging.info("stage 1: Face analysis completed, status: %s", result['status'])
+        if result['status'] =='success':
             # 遍历多个人脸对象列表
-            person_faces = []
-            for match_info in face_result.data.MatchList:
+            for match_info in face_result.data.match_list:
                 face_objects = []
-                face_items = match_info.FaceItems
+                face_items = match_info.face_items
                 # 遍历每个FaceItem，创建FaceObject实例      
                 for face_item in face_items:
                     face_object = FaceObject(
-                        face_id=face_item.FaceId,
-                        entity_id=face_item.EntityId,
+                        face_id=face_item.face_id,
+                        entity_id=face_item.entity_id,
                         confidence=face_item.confidence,
                         rect={}
                     )
@@ -89,27 +77,31 @@ class PersonAnalyzer:
                     best_face_object = max(face_objects, key=lambda f: f.confidence)
                     # 创建PersonObject实例
                     self.face_object = best_face_object
-                    self.face_object.rect = match_info.Location
+                    self.face_object.rect = match_info.location
                     person_faces.append(self.face_object)
             # 打印每个人脸对象的信息
-            for person_face in person_faces:
-                print(f"Detected Face: {person_face.face_id}, "
-                      f"Confidence: {person_face.confidence}, "
-                      f"Rect: {person_face.rect}")          
+            logging.info("Detected faces:", extra={'face_count': len(person_faces)})
+            for person_face in person_faces:     
+                self.logger.info(f"Detected Face: {person_face.face_id},Entity_id:{person_face.entity_id},Confidence: {person_face.confidence}, Rect: {person_face.rect}")
+        else:
+            self.logger.info("没有检测到人脸信息")
             
                  
         # state2  添加人脸属性分析
         # {'Data': {'AgeList': [26, 20], 'BeautyList': [], 'DenseFeatureLength': 0, 'DenseFeatures': [], 'Expressions': [], 'FaceCount': 2, 'FaceProbabilityList': [0.95, 0.95], 'FaceRectangles': [171, 85, 46, 57, 310, 66, 47, 61], 'GenderList': [1, 0], 'Glasses': [], 'HatList': [], 'LandmarkCount': 0, 'Landmarks': [], 'Masks': [], 'PoseList': [], 'Pupils': [], 'Qualities': {'BlurList': [], 'FnfList': [], 'GlassList': [], 'IlluList': [], 'MaskList': [], 'NoiseList': [], 'PoseList': [], 'ScoreList': []}}, 'RequestId': 'BE15BC11-36D3-5F45-B789-DD2CF9ABFFA2'}
-        status,face_attribers = self.face_analyzer.recognize_face(image)
-        if status == "success":
+        result = self.face_analyzer.recognize_face(image)
+        face_attribers = result['result']
+        status = result['status']
+        logging.info("stage 2: Starting face attribute analysis...")
+        if status =='success':
             # 遍历人脸属性分析结果
            
             for face in person_faces:
                 # 获取对应人脸的属性
                 index = person_faces.index(face)
-                age = face_attribers.data.AgeList[index] if index < len(face_attribers.data.AgeList) else None
+                age = face_attribers.data.age_list[index] if index < len(face_attribers.data.age_list) else None
                 age=age if age is not None else 0  # 默认年龄为0
-                gender = face_attribers.data.GenderList[index] if index < len(face_attribers.data.GenderList) else None
+                gender = face_attribers.data.gender_list[index] if index < len(face_attribers.data.gender_list) else None
                 if gender == 1:
                     gender = "male"
                 elif gender == 0:   
@@ -126,45 +118,53 @@ class PersonAnalyzer:
                 persons.append(person)
             # 打印每个人的属性信息  
             for person in persons:
-                print(person)
+                self.logger.info(str(person))
         else:
-            print("没有检测到人脸属性信息")
+            self.logger.info("没有检测到人脸属性信息")
 
         # state3 人脸表情分析
         # {'Data': {'Elements': [{'Expression': 'happiness', 'FaceProbability': 0.822265625, 'FaceRectangle': {'Height': 255, 'Left': 344, 'Top': 122, 'Width': 189}}]}, 'RequestId': '6C0F6604-7996-54C3-9E70-B8157F081A9E'}
-        status,face_emotions = self.face_analyzer.recongize_expression(image)
-        if status == "success":
+        result = self.face_analyzer.recongize_expression(image)
+        face_emotions = result['result']
+        status = result['status']
+        logging.info("stage 3: Starting face emotion analysis...")
+        if status =='success':
             # 遍历人脸表情分析结果
             for face in person_faces:
                 # 获取对应人脸的表情
                 index = person_faces.index(face)
-                emotion = face_emotions.data.Elements[index].Expression if index < len(face_emotions.data.Elements) else None
+                emotion = face_emotions.data.elements[index].expression if index < len(face_emotions.data.elements) else None
                 if emotion is None:
                     emotion = "unknown"
                 else:
                     persons[index].emotion = emotion
             # 打印每个人的表情信息
             for person in persons:  
-                print(f"{person.name} 的表情是 {person.emotion}")  
+                self.logger.info(f"{person.name} 的表情是 {person.emotion}")  
         else:
-            print("没有检测到人脸表情信息")
+            self.logger.info("没有检测到人脸表情信息")
 
         # state4 静态手势分析,当前只能识别一个人静态手势，效果不太好
         # {'Data': {'Height': 337, 'Score': 0.8125, 'Type': 'good', 'Width': 164, 'X': 107, 'Y': 169}, 'RequestId': '3E0D1427-84A8-5844-8350-C24B4AA12905'}
-        status,hand_gesture = self.face_analyzer.recognize_hand_gesture(image)
-        if status == "success": 
+        result = self.face_analyzer.recognize_hand_gesture(image)
+        hand_gesture = result['result']
+        status = result['status']
+        logging.info("stage 4: Starting static hand gesture analysis...")
+        if status =='success': 
             # 获取静态手势分析结果
             for person in persons:
                 # 假设只分析第一个人
-                person.hand_gesture = hand_gesture.data.Type if hand_gesture.data.Type else "unknown"
+                person.hand_gesture = hand_gesture.data.type if hand_gesture.data.type else "unknown"
         else:
-            print("没有检测到静态手势信息")
+            self.logger.info("没有检测到静态手势信息")
             
         # state5 打印所有人的信息
+        logging.info("stage 5: Finalizing person analysis...")
         for person in persons:
-            print(person)
+            self.logger.info(str(person))
         # 记录结束时间
         end_time = time.time()
         # 打印分析耗时  
-        print(f"Analysis completed in {end_time - start_time:.2f} seconds") 
-        return persons  # 返回所有分析结果的列表
+        self.logger.info(f"Analysis completed in {end_time - start_time:.2f} seconds") 
+        persons.clear()  # 清空persons列表以释放内存
+        person_faces.clear()  # 清空person_faces列表以释放内存
