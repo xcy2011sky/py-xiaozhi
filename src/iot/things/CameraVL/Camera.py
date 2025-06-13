@@ -210,7 +210,7 @@ class Camera(Thing):
         self.app = Application.get_instance()
         if person_list.__len__() ==0  and   self.person_list_holder.__len__() == 0:
             logger.info("初次启动没有识别到人物")
-            chat_message = "你好，当前场景无人"
+            chat_message = "当前场景无人"
             self.app._on_incoming_vision(chat_message)
     
             return
@@ -245,51 +245,38 @@ class Camera(Thing):
     
             return 
         if self.person_list_holder.__len__() > 0 and person_list.__len__() > 0:
-
-            if(len(person_list)==len(self.person_list_holder)):
-                logger.info("人物列表无变化,表情、动作有变化")
-                for new_person in person_list:
+            old_names = set(person.name for person in self.person_list_holder)
+            new_names = set(person.name for person in person_list)
+            added_names = new_names - old_names
+            logger.info(f"新增人物: {added_names} old_names: {old_names} new_names: {new_names}")
+            for person in person_list:
+                if person.name in added_names:
+                    self.person_list_holder.append(person)
+                    logger.info(f"新增人物: {person.name} 当前总人数= {len(self.person_list_holder)}")
+                    if person.name == "yan2":
+                        chat_message = "你看到了言哥过来，你需要热情的打招呼并主动交谈起来"
+                    else:
+                        chat_message = f"你看到一个陌生人，你需要热情的打招呼并提醒他给你介绍自己"
+                else:
+                    logger.info(f"人物 {person.name} 已经存在于列表中")
+                    # 检查年龄、表情和手势是否有变化
                     for old_person in self.person_list_holder:
-                        if new_person.name==old_person.name:
-                            logger.info(f"{new_person.name} 表情或动作发生了变化")
-                            if new_person.emotion!=old_person.emotion:
-                                logger.info(f" {new_person.name} 之前表情：{old_person.emotion}新表情为: {new_person.emotion}")
-                                old_person.emotion=new_person.emotion
-                                chat_message = f"检测到{new_person.name} 的表情发生了变化，之前是 {old_person.emotion}，现在是 {new_person.emotion}。针对表情变化，给出一些情感关怀"
-
-                            
-                            if  new_person.hand_gesture!=old_person.hand_gesture:
-                                logger.info(f" {new_person.name} 之前手势：{old_person.hand_gesture}新手势为: {new_person.hand_gesture}")
-                                old_person.hand_gesture=new_person.hand_gesture
-                                chat_message=f"检测到{new_person.name} 有新手势动作 {new_person.hand_gesture}，请根据手势动作进行适当的回应"
-
-                        else:
-                            continue
-
-
-            else:
-                logger.info("人物列表有变化")
-                # 比较person_list和self.person_list_holder的人物表格，找出以person.name新增的人物，并增加到self.person_list_holder中
-                old_names = set(person.name for person in self.person_list_holder)
-                new_names = set(person.name for person in person_list)
-                added_names = new_names - old_names
-                for person in person_list:
-                    if person.name in added_names:
-                        self.person_list_holder.append(person)
-                        logger.info(f"新增人物: {person.name} 当前总人数= {len(self.person_list_holder)}")
-                        if person.name == "yan2":
-                            chat_message = "你看到了言哥过来，你需要热情的打招呼并主动交谈起来"
-                        else:
-                            chat_message = f"你看到一个陌生人，你需要热情的打招呼并提醒他给你介绍自己"
-                
+                        if person.name == old_person.name:
+                            if person.emotion != old_person.emotion or person.hand_gesture != old_person.hand_gesture:
+                                logger.info(f"{person.name} 的表情或手势发生了变化")
+                                chat_message = f"检测到{person.name} 表情为{person.emotion}给出一些情感关怀"
+                                if person.hand_gesture in ["ok", "good", "mute"]:
+                                    chat_message += f"检测到{person.name} 手势动作 {person.hand_gesture}，你可以回应他"
+                                old_person.emotion = person.emotion
+                                old_person.hand_gesture = person.hand_gesture
+                            else:
+                                logger.info(f"{person.name} 的表情和手势没有变化")
 
             self.app._on_incoming_vision(chat_message)
-    
-            return 
+            return
         else:
-            logger.error("无预期的场景")  
-            return  
-        
+            logger.error("无预期的场景")
+            return
 
         
      

@@ -294,7 +294,9 @@ class Application:
         self.events[EventType.SCHEDULE_EVENT].set()
     def _handle_vision_input(self):
         """处理视觉输入"""
- 
+        if self.vision_analyzer_message == "":
+            logger.info("没有视觉输入数据，跳过处理")
+            return
         message ="你好小智,"+self.vision_analyzer_message
         logger.info(f"处理视觉输入: {message}")
         # 读取并发送视觉数
