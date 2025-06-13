@@ -25,45 +25,6 @@ from alibabacloud_tea_util import models as util_models
 from alibabacloud_tea_util.client import Client as UtilClient
 import threading
 
-class HandGesture(Enum):
-    """静态手势识别结果的枚举类型"""
-    BG = 'bg'     # 无法识别的手势
-    OK = 'ok'     # 确认
-    PALM = 'palm' # 手掌
-    LEFT = 'left' # 握拳且大拇指向左
-    RIGHT = 'right' # 握拳且大拇指向右
-    GOOD = 'good'   # 点赞（即握拳且大拇指向上）
-    MUTE = 'mute'   # 噤声（将食指放在嘴上即被识别为噤声）
-    DOWN = 'down'   # 握拳且大拇指向下
-
-    @classmethod
-    def from_string(cls, value: str) -> 'HandGesture':
-        """从字符串转换为枚举值"""
-        try:
-            return cls(value.lower())
-        except ValueError:
-            raise ValueError(f"无效的手势类型: {value}. 可选值: {[e.value for e in cls]}")
-
-class FaceExpression(Enum):
-    """人脸表情的枚举类型"""
-    NEUTRAL = 'neutral'     # 中性
-    HAPPINESS = 'happiness' # 高兴
-    SURPRISE = 'surprise'   # 惊讶
-    SADNESS = 'sadness'     # 伤心
-    ANGER = 'anger'         # 生气
-    DISGUST = 'disgust'     # 厌恶
-    FEAR = 'fear'           # 害怕
-    POUTY = 'pouty'         # 嘟嘴
-    GRIMACE = 'grimace'     # 鬼脸
-
-    @classmethod
-    def from_string(cls, value: str) -> 'FaceExpression':
-        """从字符串转换为枚举值"""
-        try:
-            return cls(value.lower())
-        except ValueError:
-            raise ValueError(f"无效的表情类型: {value}. 可选值: {[e.value for e in cls]}")
-
 
 class FaceAnalyzer:
     _instance = None

@@ -40,7 +40,7 @@ class Camera(Thing):
             self.config.get_config("CAMERA.models"),
         )
         self.VL = VL.ImageAnalyzer.get_instance()
-        print(f"[虚拟设备] 摄像头设备初始化完成")
+        logger.info(f"[虚拟设备] 摄像头设备初始化完成")
 
         self.add_property_and_method()  # 定义设备方法与状态属性
 
@@ -50,7 +50,7 @@ class Camera(Thing):
         self.is_person_analyzer_running = False
         self.person_analyzer = PersonAnalyzer()
         self.person_list_holder = []  # 用于存储分析结果
-        print(f"[虚拟设备] 视觉实时人物分析初始化完成")
+        logger.info(f"[虚拟设备] 视觉实时人物分析初始化完成")
  
       
 
@@ -106,7 +106,6 @@ class Camera(Thing):
 
             # 显示画面
             cv2.imshow("Camera", frame)
-
             # 按下 'q' 键退出
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.is_running = False
@@ -157,7 +156,8 @@ class Camera(Thing):
             logger.error("摄像头未打开")
             return
         frame_count = 0
-        old_persons=[]     
+        old_persons=[]
+
         while self.is_running:
             if frame_count % 60 == 0:
                 ret, frame = self.cap.read()
@@ -206,16 +206,43 @@ class Camera(Thing):
         处理人物分析结果，生成聊天消息
         :param person_list: 人物对象列表
         """
-        chat_messages = []
+        chat_message= ""
+        self.app = Application.get_instance()
         if person_list.__len__() ==0  and   self.person_list_holder.__len__() == 0:
             logger.info("初次启动没有识别到人物")
-            return 
+            chat_message = "你好，当前场景无人"
+            self.app._on_incoming_vision(chat_message)
+    
+            return
         if  person_list.__len__() > 0  and self.person_list_holder.__len__() == 0:
             self.person_list_holder = person_list
             logger.info(f"新识别到人物: {self.person_list_holder}")
+            is_yan = False
+            is_other = False
+            for person in person_list:
+                if person.name =="yan2":
+                    is_yan = True   
+                else:
+                    is_other = True
+            if is_yan and is_other:
+                chat_message = "你看到了言哥和其他人在一起，你需要热情的打招呼并提醒他们给你介绍自己。"
+            elif is_yan and not is_other:
+                chat_message = "你看到了言哥过来，你需要热情的打招呼并主动交谈起来。"
+            elif not is_yan and is_other:
+                chat_message = "你看到一个陌生人，你需要热情的打招呼并提醒他给你介绍自己。"
+            else:
+                chat_message = "你好，当前场景无人"
+            logger.info(f"当前场景识别到人物: {chat_message}")
+     
+            self.app._on_incoming_vision(chat_message)
+    
             return 
         if  person_list.__len__() == 0 and self.person_list_holder.__len__() > 0:
-            logger.info("之前有人物，但是人物已经离开：")
+            logger.info("当前场景无人，之前有人,进入休眠状态")
+            chat_message = "当前场景无人，进入休眠状态"
+
+            self.app._on_incoming_vision(chat_message)
+    
             return 
         if self.person_list_holder.__len__() > 0 and person_list.__len__() > 0:
 
@@ -228,26 +255,36 @@ class Camera(Thing):
                             if new_person.emotion!=old_person.emotion:
                                 logger.info(f" {new_person.name} 之前表情：{old_person.emotion}新表情为: {new_person.emotion}")
                                 old_person.emotion=new_person.emotion
+                                chat_message = f"检测到{new_person.name} 的表情发生了变化，之前是 {old_person.emotion}，现在是 {new_person.emotion}。针对表情变化，给出一些情感关怀"
 
                             
                             if  new_person.hand_gesture!=old_person.hand_gesture:
                                 logger.info(f" {new_person.name} 之前手势：{old_person.hand_gesture}新手势为: {new_person.hand_gesture}")
                                 old_person.hand_gesture=new_person.hand_gesture
+                                chat_message=f"检测到{new_person.name} 有新手势动作 {new_person.hand_gesture}，请根据手势动作进行适当的回应"
+
                         else:
                             continue
 
 
             else:
                 logger.info("人物列表有变化")
-                for new_person in person_list:
-                    for old_person in self.person_list_holder:
-                        if new_person.name==old_person.name:
-                            continue
+                # 比较person_list和self.person_list_holder的人物表格，找出以person.name新增的人物，并增加到self.person_list_holder中
+                old_names = set(person.name for person in self.person_list_holder)
+                new_names = set(person.name for person in person_list)
+                added_names = new_names - old_names
+                for person in person_list:
+                    if person.name in added_names:
+                        self.person_list_holder.append(person)
+                        logger.info(f"新增人物: {person.name} 当前总人数= {len(self.person_list_holder)}")
+                        if person.name == "yan2":
+                            chat_message = "你看到了言哥过来，你需要热情的打招呼并主动交谈起来"
                         else:
-                            self.person_list_holder.append(new_person)
-                            logger.info(f"新增人物: {new_person.name} 当当前总人数= {self.person_list_holder.__len__()}")
-     
+                            chat_message = f"你看到一个陌生人，你需要热情的打招呼并提醒他给你介绍自己"
+                
 
+            self.app._on_incoming_vision(chat_message)
+    
             return 
         else:
             logger.error("无预期的场景")  
@@ -260,12 +297,12 @@ class Camera(Thing):
         if self.person_analyzer_thread is not None and self.person_analyzer_thread.is_alive():
             logger.warning("视觉分析线程已在运行")
             return
+      
         
         self.person_analyzer_thread = threading.Thread(target=self._person_analyzer_loop, daemon=True)
         self.person_analyzer_thread.start()
         logger.info("视觉分析线程已启动")
-        
-
+      
 
     def stop_camera(self):
         """停止摄像头线程"""

@@ -92,7 +92,11 @@ class Application:
             EventType.SCHEDULE_EVENT: threading.Event(),
             EventType.AUDIO_INPUT_READY_EVENT: threading.Event(),
             EventType.AUDIO_OUTPUT_READY_EVENT: threading.Event(),
+            EventType.VISION_INPUT_READY_EVENT: threading.Event(),
         }
+        # 初始化视觉分析器消息
+        self.vision_analyzer_message = ""
+       
 
         # 创建显示界面
         self.display = None
@@ -264,6 +268,8 @@ class Application:
                         self._handle_output_audio()
                     elif event_type == EventType.SCHEDULE_EVENT:
                         self._process_scheduled_tasks()
+                    elif event_type == EventType.VISION_INPUT_READY_EVENT:
+                        self._handle_vision_input()
 
             # 短暂休眠以避免CPU占用过高
             time.sleep(0.01)
@@ -286,6 +292,14 @@ class Application:
         with self.mutex:
             self.main_tasks.append(callback)
         self.events[EventType.SCHEDULE_EVENT].set()
+    def _handle_vision_input(self):
+        """处理视觉输入"""
+ 
+        message ="你好小智,"+self.vision_analyzer_message
+        logger.info(f"处理视觉输入: {message}")
+        # 读取并发送视觉数
+        asyncio.run_coroutine_threadsafe(self._send_text_tts(message), self.loop)
+
 
     def _handle_input_audio(self):
         """处理音频输入"""
@@ -333,6 +347,12 @@ class Application:
                 asyncio.run_coroutine_threadsafe(
                     self.protocol.close_audio_channel(), self.loop
                 )
+
+    def _on_incoming_vision(self, chat_message):
+        """接收视觉数据回调"""
+        self.vision_analyzer_message=chat_message
+        logger.info(f"接收到视觉数据: {chat_message}")
+        self.events[EventType.VISION_INPUT_READY_EVENT].set()
 
     def _on_incoming_audio(self, data):
         """接收音频数据回调"""

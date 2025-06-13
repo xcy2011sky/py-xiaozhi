@@ -36,6 +36,7 @@ class EventType:
     SCHEDULE_EVENT = "schedule_event"
     AUDIO_INPUT_READY_EVENT = "audio_input_ready_event"
     AUDIO_OUTPUT_READY_EVENT = "audio_output_ready_event"
+    VISION_INPUT_READY_EVENT = "vision_input_ready_event"
 
 
 def is_official_server(ws_addr: str) -> bool:
